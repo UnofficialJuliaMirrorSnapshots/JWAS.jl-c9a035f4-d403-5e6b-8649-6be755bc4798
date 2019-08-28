@@ -18,7 +18,7 @@ function output_result(mme,solMean,meanVare,G0Mean,output_samples_frequency,
     if mme.output_ID != 0
         for pedtrm in mme.pedTrmVec
             traiti, effect = split(pedtrm,':')
-            sol_pedtrm     = map(Float64,location_parameters[(location_parameters[:Effect].==effect).&(location_parameters[:Trait].==traiti),:Estimate])
+            sol_pedtrm     = map(Float64,location_parameters[(location_parameters[!,:Effect].==effect).&(location_parameters[!,:Trait].==traiti),:Estimate])
             EBV_pedtrm     = mme.output_X[pedtrm]*sol_pedtrm
             output["EBV"*"_"*string(mme.lhsVec[parse(Int64,traiti)])] += EBV_pedtrm
         end
@@ -246,7 +246,7 @@ function getEBV(mme,sol,α,traiti)
         for pedtrm in mme.pedTrmVec
             mytrait, effect = split(pedtrm,':')
             if mytrait == traiti
-                sol_pedtrm     = map(Float64,location_parameters[(location_parameters[:Effect].==effect).&(location_parameters[:Trait].==traiti),:Estimate])
+                sol_pedtrm     = map(Float64,location_parameters[(location_parameters[!,:Effect].==effect).&(location_parameters[!,:Trait].==traiti),:Estimate])
                 EBV_pedtrm     = mme.output_X[pedtrm]*sol_pedtrm
                 EBV += EBV_pedtrm
             end
@@ -259,8 +259,8 @@ function getEBV(mme,sol,α,traiti)
 
     if haskey(mme.output_X,"J") #single-step analyis
         for traiti in 1:mme.nModels
-            sol_J  = map(Float64,location_parameters[(location_parameters[:Effect].=="J").&(location_parameters[:Trait].==string(traiti)),:Estimate])[1]
-            sol_ϵ  = map(Float64,location_parameters[(location_parameters[:Effect].=="ϵ").&(location_parameters[:Trait].==string(traiti)),:Estimate])
+            sol_J  = map(Float64,location_parameters[(location_parameters[!,:Effect].=="J").&(location_parameters[!,:Trait].==string(traiti)),:Estimate])[1]
+            sol_ϵ  = map(Float64,location_parameters[(location_parameters[!,:Effect].=="ϵ").&(location_parameters[!,:Trait].==string(traiti)),:Estimate])
             EBV_J  = mme.output_X["J"]*sol_J
             EBV_ϵ  = mme.output_X["ϵ"]*sol_ϵ
             EBV   += (EBV_J+EBV_ϵ)

@@ -6,6 +6,10 @@ function errors_args(mme,methods)
       error("Please build your model again using the function build_model().")
     end
 
+    if mme.MCMCinfo.output_samples_frequency <= 0
+        error("output_samples_frequency should be an integer > 0.")
+    end
+
     Pi         = mme.MCMCinfo.Pi
     estimatePi = mme.MCMCinfo.estimatePi
     if methods == "conventional (no markers)"
@@ -68,7 +72,7 @@ function check_pedigree(mme,df,pedigree)
         error("Not all genotyped individuals are found in pedigree!")
     end
 
-    phenoID = map(string,df[1])
+    phenoID = map(string,df[!,1])
     if !issubset(phenoID,pedID)
         error("Not all phenotyped individuals are found in pedigree!")
     end
@@ -94,7 +98,7 @@ end
 
 function check_phenotypes(mme,df)
     single_step_analysis = mme.MCMCinfo.single_step_analysis
-    phenoID = map(string,df[1])   #same to df[:,1] in deprecated CSV
+    phenoID = map(string,df[!,1])   #same to df[:,1] in deprecated CSV
     if mme.M == 0 && mme.ped == 0 #non-genetic analysis
         return df
     end
@@ -136,9 +140,16 @@ end
 function init_mixed_model_equations(mme,df,sol)
     getMME(mme,df)
     #starting value for sol can be provided
+    nsol = mme.M!=0 ? size(mme.mmeLhs,1)+mme.M.nMarkers*mme.nModels : size(mme.mmeLhs,1)
     if sol == false #no starting values
-        sol = zeros(size(mme.mmeLhs,1))
+        sol = zeros(nsol)
     else            #besure type is Float64
+        if length(sol) != nsol || typeof(sol) <: AbstractString
+            error("length or type of starting values is wrong.")
+        end
+        printstyled("Starting values are provided. The order of starting values for location parameters and\n",
+        "marker effects should be the order of the Mixed Model Equation (This can be\n",
+        "obtained by getNames(model)) and markers\n",bold=false,color=:red)
         sol = map(Float64,sol)
     end
     return sol,df

@@ -17,6 +17,7 @@ function MT_MCMC_BayesC(nIter,mme,df;
     # Pre-Check
     ############################################################################
     #starting values for location parameters(no marker) are sol
+    sol,α       = sol[1:size(mme.mmeLhs,1)],sol[(size(mme.mmeLhs,1)+1):end]
     solMean     = zero(sol)
 
     if methods in ["RR-BLUP","BayesL"]
@@ -114,11 +115,11 @@ function MT_MCMC_BayesC(nIter,mme,df;
             #wArray[traiti]         = pointer_to_array(ptr,nObs)
             wArray[traiti]         = unsafe_wrap(Array,ptr,nObs)
 
-            alphaArray[traiti]     = zeros(nMarkers)
+            alphaArray[traiti]     = copy(α[(traiti-1)*nMarkers+1:traiti*nMarkers])
             meanAlphaArray[traiti] = zeros(nMarkers)
             deltaArray[traiti]     = ones(nMarkers)
             meanDeltaArray[traiti] = zeros(nMarkers)
-            uArray[traiti]         = zeros(nMarkers)
+            uArray[traiti]         = copy(α[(traiti-1)*nMarkers+1:traiti*nMarkers])
             meanuArray[traiti]     = zeros(nMarkers)
         end
 
@@ -147,7 +148,7 @@ function MT_MCMC_BayesC(nIter,mme,df;
         Λy = kron(Λ,sparse(1.0I,nObs,nObs))*mme.ySparse
 
         causal_structure_filename = "strcuture_coefficient_MCMC_samples.txt"
-        causal_structure_outfile  = open(filename,"w")   #write MCMC samples for Λ to a txt file
+        causal_structure_outfile  = open(causal_structure_filename,"w")   #write MCMC samples for Λ to a txt file
     end
 
     ############################################################################
@@ -376,7 +377,7 @@ function MT_MCMC_BayesC(nIter,mme,df;
             else
                 output_MCMC_samples(mme,sol,R0,(mme.pedTrmVec!=0 ? G0 : false),false,fill(false,nTraits),false,outfile)
             end
-            if causal_structure == true
+            if causal_structure != false
                 writedlm(causal_structure_outfile,sample4λ',',')
             end
         end
@@ -411,7 +412,7 @@ function MT_MCMC_BayesC(nIter,mme,df;
       for (key,value) in outfile
         close(value)
       end
-      if causal_structure == true
+      if causal_structure != false
         close(causal_structure_outfile)
       end
     end
