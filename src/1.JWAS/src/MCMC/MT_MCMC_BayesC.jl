@@ -417,27 +417,15 @@ function MT_MCMC_BayesC(nIter,mme,df;
       end
     end
     if mme.M != 0 && methods in ["RR-BLUP","BayesL"]
-        output=output_result(mme,solMean,R0Mean,(mme.pedTrmVec!=0 ? G0Mean : false),output_samples_frequency,
-                             meanAlphaArray,GMMean,estimatePi,false,false,false,output_file)
+        output=output_result(mme,solMean,R0Mean,(mme.pedTrmVec!=0 ? G0Mean : false),
+                             meanAlphaArray,meanDeltaArray,GMMean,estimatePi,false,false,false,output_file)
     elseif mme.M != 0
-        output=output_result(mme,solMean,R0Mean,(mme.pedTrmVec!=0 ? G0Mean : false),output_samples_frequency,
-                             meanuArray,GMMean,estimatePi,BigPiMean,false,false,output_file)
+        output=output_result(mme,solMean,R0Mean,(mme.pedTrmVec!=0 ? G0Mean : false),
+                             meanuArray,meanDeltaArray,GMMean,estimatePi,BigPiMean,false,false,output_file)
     else
-        output=output_result(mme,solMean,R0Mean,(mme.pedTrmVec!=0 ? G0Mean : false),output_samples_frequency,
-                             false,false,false,false,false,false,output_file)
+        output=output_result(mme,solMean,R0Mean,(mme.pedTrmVec!=0 ? G0Mean : false),
+                             false,false,false,false,false,false,false,output_file)
     end
-
-    #OUTPUT Marker Effects
-    if mme.M != 0
-      if methods != "BayesB"
-          output["Posterior mean of marker effects covariance matrix"] = GMMean
-      end
-
-      if methods=="BayesC"||methods=="BayesCC"||methods=="BayesB"
-        output["Model frequency"] = meanDeltaArray
-      end
-    end
-
     return output
 end
 
