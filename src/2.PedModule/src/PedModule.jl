@@ -5,6 +5,7 @@ using SparseArrays
 using ProgressMeter
 
 export get_pedigree
+export getinfo
 
 """
     get_pedigree(pedfile::AbstractString;header=false,separator=',')
@@ -230,6 +231,9 @@ end
 function  mkPed(pedFile::AbstractString;header=false,separator=',')
     df  = CSV.read(pedFile,types=[String,String,String],
                     delim=separator,header=header)
+    df[!,1]=strip.(df[!,1])
+    df[!,2]=strip.(df[!,2])
+    df[!,3]=strip.(df[!,3])
     ped = Pedigree(1,Dict{AbstractString,PedNode}(),
                      Dict{Int64, Float64}(),
                      Set(),Set(),Set(),Set(),Array{String,1}())
@@ -265,6 +269,31 @@ function getInbreeding(ped::Pedigree)
     return inbreeding
 end
 
+"""
+    get_info(pedigree::Pedigree)
+* Print summary informtion from a pedigree object including number of individulas, sires.
+  dams and founders. Return individual IDs, inverse of numerator relationship matrix,
+  and inbreeding coefficients.
+
+"""
+function getinfo(pedigree::Pedigree)
+    println("#individuals: ",length(pedigree.idMap))
+    sires  = [pednode.sire for pednode in values(pedigree.idMap)]
+    dams = [pednode.dam for pednode in values(pedigree.idMap)]
+    println("#sires:       ",sum(unique(sires).!="0"))
+    println("#dams:        ",sum(unique(dams).!="0"))
+    println("#founders:    ",length(pedigree.idMap)-sum((sires .!= "0") .* (dams .!= "0")))
+
+    Ai   = PedModule.AInverse(pedigree)
+    IDs = PedModule.getIDs(pedigree)
+    inbreeding = PedModule.getInbreeding(pedigree)
+    #outID=string.(1:12)
+    #JWAS.mkmat_incidence_factor(outID,inID)
+    #mat=Matrix(JWAS.mkmat_incidence_factor(outID,inID))
+    #A=mat*A*mat'
+    println("Get individual IDs, inverse of numerator relationship matrix, and inbreeding coefficients.")
+    return IDs,Ai,inbreeding
+end
 
 include("forSSBR.jl")
 

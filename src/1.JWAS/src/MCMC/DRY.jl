@@ -72,7 +72,7 @@ function check_pedigree(mme,df,pedigree)
         error("Not all genotyped individuals are found in pedigree!")
     end
 
-    phenoID = map(string,df[!,1])
+    phenoID = strip.(map(string,df[!,1]))
     if !issubset(phenoID,pedID)
         error("Not all phenotyped individuals are found in pedigree!")
     end
@@ -98,7 +98,7 @@ end
 
 function check_phenotypes(mme,df)
     single_step_analysis = mme.MCMCinfo.single_step_analysis
-    phenoID = map(string,df[!,1])   #same to df[:,1] in deprecated CSV
+    phenoID = strip.(map(string,df[!,1]))
     if mme.M == 0 && mme.ped == 0 #non-genetic analysis
         return df
     end
@@ -148,8 +148,8 @@ function init_mixed_model_equations(mme,df,sol)
             error("length or type of starting values is wrong.")
         end
         printstyled("Starting values are provided. The order of starting values for location parameters and\n",
-        "marker effects should be the order of the Mixed Model Equation (This can be\n",
-        "obtained by getNames(model)) and markers\n",bold=false,color=:red)
+        "marker effects should be the order of location parameters in the Mixed Model Equation for all traits (This can be\n",
+        "obtained by getNames(model)) and then markers for all traits\n",bold=false,color=:red)
         sol = map(Float64,sol)
     end
     return sol,df
