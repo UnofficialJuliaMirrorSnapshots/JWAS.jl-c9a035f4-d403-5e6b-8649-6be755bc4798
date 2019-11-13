@@ -8,6 +8,8 @@ using ProgressMeter
 using .PedModule
 using .misc
 
+import StatsBase: describe #a new describe is exported
+
 #Models
 include("buildMME/types.jl")
 include("buildMME/build_MME.jl")
@@ -218,7 +220,7 @@ function runMCMC(mme::MME,df;
     # Initiate Mixed Model Equations for Non-marker Parts (run after SSBRrun for ϵ & J)
     ############################################################################
     # initiate Mixed Model Equations and check starting values
-    starting_value,df = init_mixed_model_equations(mme,df,starting_value)
+    mme.MCMCinfo.starting_value,df = init_mixed_model_equations(mme,df,starting_value)
 
     if mme.M!=0
         Pi = set_marker_hyperparameters_variances_and_pi(mme,Pi,methods)
@@ -234,32 +236,23 @@ function runMCMC(mme::MME,df;
       describe(mme)
     end
 
-    if mme.nModels ==1
-        if methods in ["conventional (no markers)","BayesC","RR-BLUP","BayesB","BayesL"]
-            res=MCMC_BayesianAlphabet(chain_length,mme,df,
-                            burnin                   = burnin,
-                            π                        = Pi,
-                            methods                  = methods,
-                            estimatePi               = estimatePi,
-                            estimateScale            = estimateScale,
-                            starting_value           = starting_value,
-                            outFreq                  = printout_frequency,
-                            output_samples_frequency = output_samples_frequency,
-                            output_file              = output_samples_file,
-                            update_priors_frequency  = update_priors_frequency,
-                            categorical_trait        = categorical_trait)
-        elseif methods =="GBLUP" && single_step_analysis != true
-            res=MCMC_GBLUP(chain_length,mme,df;
-                            burnin                   = burnin,
-                            sol                      = starting_value,
-                            outFreq                  = printout_frequency,
-                            output_samples_frequency = output_samples_frequency,
-                            output_file              = output_samples_file)
-        end
-    elseif mme.nModels > 1
+    if mme.nModels ==1 #single-trait analysis
+        res=MCMC_BayesianAlphabet(chain_length,mme,df,
+                        burnin                   = burnin,
+                        π                        = Pi,
+                        methods                  = methods,
+                        estimatePi               = estimatePi,
+                        estimateScale            = estimateScale,
+                        starting_value           = mme.MCMCinfo.starting_value,
+                        outFreq                  = printout_frequency,
+                        output_samples_frequency = output_samples_frequency,
+                        output_file              = output_samples_file,
+                        update_priors_frequency  = update_priors_frequency,
+                        categorical_trait        = categorical_trait)
+    else #multi-trait analysis
         if methods == "conventional (no markers)" && estimate_variance == false
           res=MT_MCMC_PBLUP_constvare(chain_length,mme,df,
-                            sol    = starting_value,
+                            sol    = mme.MCMCinfo.starting_value,
                             outFreq= printout_frequency,
                             missing_phenotypes=missing_phenotypes,
                             estimate_variance = estimate_variance,
@@ -269,7 +262,7 @@ function runMCMC(mme::MME,df;
         elseif methods in ["BayesL","BayesC","BayesB","RR-BLUP","conventional (no markers)"]
           res=MT_MCMC_BayesianAlphabet(chain_length,mme,df,
                           Pi     = Pi,
-                          sol    = starting_value,
+                          sol    = mme.MCMCinfo.starting_value,
                           outFreq= printout_frequency,
                           missing_phenotypes=missing_phenotypes,
                           constraint = constraint,
@@ -358,6 +351,8 @@ function errors_args(mme,methods)
             error("Please provide values for the genetic variance for GBLUP analysis")
         elseif estimatePi == true
             error("GBLUP runs with estimatePi = false.")
+        elseif mme.MCMCinfo.single_step_analysis == true
+            error("SSGBLUP is not available")
         end
     end
     if mme.nModels > 1 && mme.M!=0
@@ -399,9 +394,9 @@ function check_outputID(mme)
     if mme.MCMCinfo.outputEBV == false
         mme.output_ID = 0
     elseif mme.output_ID == 0 && mme.M != 0 #all genotyped inds if no output ID
-        mme.output_ID = mme.M.obsID
+        mme.output_ID = copy(mme.M.obsID)
     elseif mme.output_ID == 0 && mme.M == 0 && mme.pedTrmVec != 0 #all inds in PBLUP
-        mme.output_ID = mme.ped.IDs
+        mme.output_ID = copy(mme.ped.IDs)
     end
 
     single_step_analysis = mme.MCMCinfo.single_step_analysis
@@ -423,7 +418,7 @@ function check_outputID(mme)
     end
     #Set ouput IDs to all genotyped inds in complete genomic data analysis for h² estimation
     if mme.MCMCinfo.output_heritability == true && mme.MCMCinfo.single_step_analysis == false && mme.M != 0
-        mme.output_ID = mme.M.obsID
+        mme.output_ID = copy(mme.M.obsID)
     end
 
 end
@@ -459,9 +454,9 @@ function check_phenotypes(mme,df)
             "Only use phenotype information for genotyped individuals.",bold=false,color=:red)
             index = [phenoID[i] in mme.M.obsID for i=1:length(phenoID)]
             df    = df[index,:]
-            printstyled("The number of observations with both genotypes and phenotypes used\n",
-            "in the analysis is ",size(df,1),".\n",bold=false,color=:red)
         end
+        printstyled("The number of observations with both genotypes and phenotypes used ",
+        "in the analysis is ",size(df,1),".\n",bold=false,color=:green)
     end
     if mme.ped != false #1)incomplete genomic data 2)PBLUP or 3)complete genomic data with polygenic effect
         pedID = map(string,collect(keys(mme.ped.idMap)))
@@ -471,9 +466,9 @@ function check_phenotypes(mme,df)
             "Only use phenotype information for individuals in the pedigree.",bold=false,color=:red)
             index = [phenoID[i] in pedID for i=1:length(phenoID)]
             df    = df[index,:]
-            printstyled("The number of observations with both phenotype and pedigree information ",
-            "used in the analysis is ",size(df,1),".\n",bold=false,color=:red)
         end
+        printstyled("The number of observations with both phenotype and pedigree information ",
+        "used in the analysis is ",size(df,1),".\n",bold=false,color=:green)
     end
     #***************************************************************************
     # set IDs for phenotypes
@@ -538,7 +533,15 @@ end
 function init_mixed_model_equations(mme,df,sol)
     getMME(mme,df)
     #starting value for sol can be provided
-    nsol = mme.M!=0 ? size(mme.mmeLhs,1)+mme.M.nMarkers*mme.nModels : size(mme.mmeLhs,1)
+    if mme.M == 0                          #PBLUP
+        nsol = size(mme.mmeLhs,1)
+    elseif mme.MCMCinfo.methods != "GBLUP" #Marker Effects Model
+        nsol = size(mme.mmeLhs,1)+mme.M.nMarkers*mme.nModels
+    elseif mme.MCMCinfo.methods == "GBLUP" #GBLUP
+        nsol = size(mme.mmeLhs,1)+mme.M.nObs*mme.nModels
+    else
+        error("Starting values are not allowed.")
+    end
     if sol == false #no starting values
         sol = zeros(nsol)
     else            #besure type is Float64
@@ -623,6 +626,10 @@ end
 * (internal function) Print out MCMC information.
 """
 function getMCMCinfo(mme)
+    if mme.MCMCinfo == 0
+        printstyled("MCMC information is not available\n\n",bold=true)
+        return
+    end
     MCMCinfo = mme.MCMCinfo
     printstyled("MCMC Information:\n\n",bold=true)
 
@@ -637,7 +644,7 @@ function getMCMCinfo(mme)
       @printf("%-30s %20s\n","estimatePi",MCMCinfo.estimatePi ? "true" : "false")
     end
     @printf("%-30s %20s\n","estimateScale",MCMCinfo.estimateScale ? "true" : "false")
-    @printf("%-30s %20s\n","starting_value",MCMCinfo.starting_value ? "true" : "false")
+    @printf("%-30s %20s\n","starting_value",MCMCinfo.starting_value != zero(MCMCinfo.starting_value) ? "true" : "false")
     @printf("%-30s %20d\n","printout_frequency",MCMCinfo.printout_frequency)
     @printf("%-30s %20d\n","output_samples_frequency",MCMCinfo.output_samples_frequency)
     @printf("%-30s %20s\n","constraint",MCMCinfo.constraint ? "true" : "false")
