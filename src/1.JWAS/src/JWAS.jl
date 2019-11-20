@@ -237,7 +237,7 @@ function runMCMC(mme::MME,df;
     end
 
     if mme.nModels ==1 #single-trait analysis
-        res=MCMC_BayesianAlphabet(chain_length,mme,df,
+        mme.output=MCMC_BayesianAlphabet(chain_length,mme,df,
                         burnin                   = burnin,
                         π                        = Pi,
                         methods                  = methods,
@@ -251,7 +251,7 @@ function runMCMC(mme::MME,df;
                         categorical_trait        = categorical_trait)
     else #multi-trait analysis
         if methods == "conventional (no markers)" && estimate_variance == false
-          res=MT_MCMC_PBLUP_constvare(chain_length,mme,df,
+          mme.output=MT_MCMC_PBLUP_constvare(chain_length,mme,df,
                             sol    = mme.MCMCinfo.starting_value,
                             outFreq= printout_frequency,
                             missing_phenotypes=missing_phenotypes,
@@ -259,8 +259,8 @@ function runMCMC(mme::MME,df;
                             output_samples_frequency=output_samples_frequency,
                             output_file=output_samples_file,
                             update_priors_frequency=update_priors_frequency)
-        elseif methods in ["BayesL","BayesC","BayesB","RR-BLUP","conventional (no markers)"]
-          res=MT_MCMC_BayesianAlphabet(chain_length,mme,df,
+        elseif methods in ["GBLUP","BayesL","BayesC","BayesB","RR-BLUP","conventional (no markers)"]
+          mme.output=MT_MCMC_BayesianAlphabet(chain_length,mme,df,
                           Pi     = Pi,
                           sol    = mme.MCMCinfo.starting_value,
                           outFreq= printout_frequency,
@@ -276,18 +276,14 @@ function runMCMC(mme::MME,df;
                           causal_structure = causal_structure)
         end
     end
-  mme.output = res
-
-  printstyled("\n\nThe version of Julia and Platform in use:\n\n",bold=true)
-  versioninfo()
-  printstyled("\n\nThe analysis has finished. Results are saved in the returned ",bold=true)
-  printstyled("variable and text files. MCMC samples are saved in text files.\n\n\n",bold=true)
-  if methods != "GBLUP"
-      for (key,value) in res
-          CSV.write(replace(key," "=>"_")*".txt",value)
-      end
-  end
-  return res
+    for (key,value) in mme.output
+      CSV.write(replace(key," "=>"_")*".txt",value)
+    end
+    printstyled("\n\nThe version of Julia and Platform in use:\n\n",bold=true)
+    versioninfo()
+    printstyled("\n\nThe analysis has finished. Results are saved in the returned ",bold=true)
+    printstyled("variable and text files. MCMC samples are saved in text files.\n\n\n",bold=true)
+    return mme.output
 end
 
 ################################################################################
@@ -363,24 +359,18 @@ function errors_args(mme,methods)
 end
 
 function check_pedigree(mme,df,pedigree)
-    if mme.ped == 0 && pedigree == false
-        return
-    elseif pedigree != false
-        mme.ped = pedigree
+    if mme.ped == 0 && pedigree != false #check whether mme.ped exists
+        mme.ped = deepcopy(pedigree)
     end
-    if pedigree!=false
-        pedID=map(string,collect(keys(pedigree.idMap)))
-    else
+    if mme.ped != 0
         pedID=map(string,collect(keys(mme.ped.idMap)))
-    end
-
-    if mme.M!=0 && !issubset(mme.M.obsID,pedID)
-        error("Not all genotyped individuals are found in pedigree!")
-    end
-
-    phenoID = strip.(map(string,df[!,1]))
-    if !issubset(phenoID,pedID)
+        if mme.M!=0 && !issubset(mme.M.obsID,pedID)
+            error("Not all genotyped individuals are found in pedigree!")
+        end
+        phenoID = strip.(map(string,df[!,1]))
+        if !issubset(phenoID,pedID)
         error("Not all phenotyped individuals are found in pedigree!")
+        end
     end
 end
 
@@ -708,7 +698,11 @@ function getMCMCinfo(mme)
 
     printstyled("\nDegree of freedom for hyper-parameters:\n\n",bold=true)
     @printf("%-30s %20.3f\n","residual variances:",mme.df.residual)
-    @printf("%-30s %20.3f\n","iid random effect variances:",mme.df.random)
+    for randomeffect in mme.rndTrmVec
+        if randomeffect.randomType != "A"
+            @printf("%-30s %20.3f\n","random effect variances:",randomeffect.df)
+        end
+    end
     if mme.pedTrmVec!=0
         @printf("%-30s %20.3f\n","polygenic effect variances:",mme.df.polygenic)
     end
